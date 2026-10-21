@@ -4,17 +4,21 @@ Loads prompts.json by language, renders one fresh user message per item, and
 appends each response to a local JSONL file. A rerun skips item/language pairs
 already present in that file.
 
-Each run writes a new JSONL file unless --output is set. Pass the same
---output path to resume a file that already contains some responses.
+A new file is named responses_{split}_n{questions}_seed{seed}_{timestamp}.jsonl.
+n is the number of questions stored in the file. --limit 0 selects the whole
+split. Pass --output to resume a file. If that path uses this name pattern and
+the question count no longer matches, the file is renamed before new rows are
+appended.
 
 Examples:
   modal run run_eval.py --split validation --limit 2
-  modal run run_eval.py --split test --limit 30 --seed 0
-  modal run run_eval.py --output data/responses_test_n30_seed0_20261021T120000Z.jsonl
+  modal run run_eval.py --split test --limit 0 --seed 0
+  modal run run_eval.py --output data/responses_test_n491_seed0_20261021T155346Z.jsonl
 """
 
 import json
 import random
+import re
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -26,6 +30,9 @@ PROMPTS_PATH = ROOT / "prompts.json"
 MODEL_ID = "Qwen/Qwen3.5-4B"
 CACHE_DIR = "/cache"
 LETTERS = ("A", "B", "C", "D")
+RESPONSE_NAME = re.compile(
+    r"^responses_(?P<split>.+)_n(?P<n>\d+)_seed(?P<seed>\d+)_(?P<stamp>\d{8}T\d{6}Z)\.jsonl$"
+)
 
 image = (
     modal.Image.debian_slim(python_version="3.11")
@@ -81,6 +88,30 @@ def select_items(rows, split, limit, seed):
     by_id = {row["item_id"]: row for row in items}
     chosen_ids = random.Random(seed).sample(sorted(by_id), limit)
     return [by_id[item_id] for item_id in sorted(chosen_ids)]
+
+
+def responses_name(split, n_items, seed, stamp):
+    return f"responses_{split}_n{n_items}_seed{seed}_{stamp}.jsonl"
+
+
+def align_output_path(output_path, split, n_items, seed, stamp):
+    """Name the file from the question count it will hold. Rename a mismatched patterned file."""
+    if output_path is None:
+        return ROOT / "data" / responses_name(split, n_items, seed, stamp)
+    match = RESPONSE_NAME.match(output_path.name)
+    if not match or int(match.group("n")) == n_items:
+        return output_path
+    corrected = output_path.with_name(
+        responses_name(match.group("split"), n_items, match.group("seed"), match.group("stamp"))
+    )
+    if output_path.exists():
+        if corrected.exists():
+            raise SystemExit(
+                f"{output_path.name} would hold {n_items} questions, but {corrected.name} already exists."
+            )
+        output_path.rename(corrected)
+        print(f"renamed {output_path.name} to {corrected.name} ({n_items} questions)")
+    return corrected
 
 
 def completed_pairs(path):
@@ -223,12 +254,16 @@ def main(
         if not output_path.is_absolute():
             output_path = ROOT / output_path
     else:
-        stamp = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
-        size = "all" if limit <= 0 else str(limit)
-        output_path = ROOT / "data" / f"responses_{split}_n{size}_seed{seed}_{stamp}.jsonl"
-    output_path.parent.mkdir(parents=True, exist_ok=True)
+        output_path = None
 
     items = select_items(load_jsonl(DATA_PATH), split, limit, seed)
+    existing_ids = set()
+    if output_path is not None and output_path.exists():
+        existing_ids = {row["item_id"] for row in load_jsonl(output_path) if row.get("item_id")}
+    n_items = len(existing_ids | {item["item_id"] for item in items})
+    stamp = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
+    output_path = align_output_path(output_path, split, n_items, seed, stamp)
+    output_path.parent.mkdir(parents=True, exist_ok=True)
     jobs = build_jobs(items, load_prompts(), language_list, completed_pairs(output_path))
     print(
         f"{split}: {len(items)} items, {len(jobs)} remaining responses, "
