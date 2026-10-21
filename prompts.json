@@ -1,0 +1,4 @@
+{
+  "am": "ከታች ያለውን ጥያቄ እና አራቱን አማራጮች በጥንቃቄ አንብብ።\n\n1. ከአማራጮቹ አንዱን ብቻ ምረጥ።\n2. በመጀመሪያው መስመር የመረጥከውን አማራጭ ፊደል\n   (A፣ B፣ C ወይም D) ብቻ ጻፍ።\n3. ከዚያ በኋላ፣ የመረጥከው መልስ ለምን ትክክል እንደሆነ\n   በአማርኛ ከ2 እስከ 4 ዓረፍተ ነገሮች አብራራ።\n   ማብራሪያው መልሱን ብቻ የሚደግም ሳይሆን፣\n   ለምርጫህ ምክንያት የሚሰጥ ይሁን።\n\nጥያቄ፦\n{question_am}\n\nA. {option_a_am}\nB. {option_b_am}\nC. {option_c_am}\nD. {option_d_am}\n",
+  "en": "Read the following question and its four options carefully.\n\n1. Select exactly one option.\n2. On the first line, write only the letter of your selected\n   option: A, B, C, or D.\n3. Then explain why your selected answer is correct in 2–4\n   sentences in English. Give a reason for your selection\n   rather than merely repeating the answer.\n\nQuestion:\n{question_en}\n\nA. {option_a_en}\nB. {option_b_en}\nC. {option_c_en}\nD. {option_d_en}\n"
+}
